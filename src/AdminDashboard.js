@@ -233,29 +233,29 @@ const AdminDashboard = () => {
             const actualWicketsInt = parseInt(actualWickets);
             const predictedRuns = parseInt(prediction.runs);
             const predictedWickets = parseInt(prediction.wickets);
-            let scoreChange = 0;
-
-            // First handle runs prediction
+            
+            // First calculate score after run prediction
+            let updatedScore = currentTeam.score;
+            
+            // Handle runs prediction
             if (predictedRuns !== actualRunsInt) {
               const runMAE = Math.abs(actualRunsInt - predictedRuns);
-              scoreChange -= runMAE;
+              updatedScore = Math.max(0, updatedScore - runMAE);
             }
 
-            // Then handle wickets prediction
+            // Then handle wickets prediction on the updated score
             if (predictedWickets === actualWicketsInt) {
-              scoreChange += 10; // Add 10 points for correct wicket prediction
+              updatedScore += 10; // Add 10 points for correct wicket prediction
             } else {
-              scoreChange -= 5; // Deduct 5 points for wrong wicket prediction
+              updatedScore = Math.max(0, updatedScore - 5); // Deduct 5 points for wrong wicket prediction
             }
 
-            // Calculate final score (never below 0)
-            const newScore = Math.max(0, currentTeam.score + scoreChange);
-            console.log(`${prediction.team_name}: Current: ${currentTeam.score}, Change: ${scoreChange}, New: ${newScore}`);
+            console.log(`${prediction.team_name}: Initial: ${currentTeam.score}, Final: ${updatedScore}`);
 
             // Update team's score
             const { error: updateError } = await supabase
               .from('teams')
-              .update({ score: newScore })
+              .update({ score: updatedScore })
               .eq('team_name', prediction.team_name);
                 
             if (updateError) throw updateError;
