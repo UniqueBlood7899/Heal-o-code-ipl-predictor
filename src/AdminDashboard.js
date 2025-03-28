@@ -115,28 +115,28 @@ const AdminDashboard = () => {
   const fetchLeaderboard = async () => {
     setLoadingLeaderboard(true);
     try {
-      // Get teams ordered by score in descending order
+      // Get all teams and their scores without any filtering
       const { data: teams, error } = await supabase
         .from('teams')
         .select('team_name, score')
-        .order('score', { ascending: false })
-        .limit(50);
+        .order('score', { ascending: false });
         
       if (error) throw error;
 
-      // Create leaderboard data with positions
+      // Add positions based on sorted order
       let currentPosition = 1;
-      let lastScore = null;
+      let currentScore = null;
       
-      const leaderboardData = teams.map((team) => {
-        // Update position only when score changes
-        if (team.score !== lastScore) {
-          currentPosition = teams.indexOf(team) + 1;
-          lastScore = team.score;
+      const leaderboardData = teams.map((team, index) => {
+        // If score is different from previous, update position
+        if (team.score !== currentScore) {
+          currentPosition = index + 1;
+          currentScore = team.score;
         }
         
         return {
-          ...team,
+          team_name: team.team_name,
+          score: team.score || 0,
           position: currentPosition
         };
       });
