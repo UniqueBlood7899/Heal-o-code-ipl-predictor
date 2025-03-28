@@ -129,9 +129,9 @@ const AdminDashboard = () => {
       
       const leaderboardData = teams.map((team, index) => {
         // If score is different from previous, update position
-        if (team.score !== currentScore) {
+        if (teams.score !== currentScore) {
           currentPosition = index + 1;
-          currentScore = team.score;
+          currentScore = teams.score;
         }
         
         return {
@@ -210,84 +210,85 @@ const AdminDashboard = () => {
     setError(null);
     
     try {
-      // Get all predictions to check against actual results
+      // Get all predictions
       const { data: predictions, error: predictionError } = await supabase
         .from('predictions')
-        .select('*, teams!inner(score)')
+        .select('team_name, runs, wickets')
         .not('runs', 'eq', 0);
-        
+          
       if (predictionError) throw predictionError;
-  
+
       // Process each prediction
       for (const prediction of predictions) {
-        let scoreChange = 0;
-
-        // Calculate Mean Absolute Error for runs
-        const actualRunsInt = parseInt(actualRuns);
-        const predictedRuns = prediction.runs;
-        const runMAE = Math.abs(actualRunsInt - predictedRuns);
-        
-        // Deduct MAE points for incorrect run predictions
-        if (runMAE > 0) {
-          scoreChange -= runMAE;
-        }
-
-        // Handle wicket predictions
-        const actualWicketsInt = parseInt(actualWickets);
-        const predictedWickets = prediction.wickets;
-        
-        // Add/deduct points based on wicket prediction
-        if (predictedWickets === actualWicketsInt) {
-          scoreChange += 10; // Correct wicket prediction
-        } else {
-          scoreChange -= 5; // Wrong wicket prediction
-        }
-
-        // Get current team's score
-        const { data: currentTeam } = await supabase
-          .from('teams')
-          .select('score')
-          .eq('team_name', prediction.team_name)
-          .single();
-          
-        if (currentTeam) {
-          // Calculate new score (ensure it doesn't go below 0)
-          const newScore = Math.max(0, currentTeam.score + scoreChange);
-          
-          // Update team's score
-          const { error: updateError } = await supabase
+        try {
+          // Get current team's score
+          const { data: currentTeam } = await supabase
             .from('teams')
-            .update({ score: newScore })
-            .eq('team_name', prediction.team_name);
-            
-          if (updateError) throw updateError;
+            .select('score')
+            .eq('team_name', prediction.team_name)
+            .single();
+
+          if (currentTeam) {
+            const actualRunsInt = parseInt(actualRuns);
+            const actualWicketsInt = parseInt(actualWickets);
+            const predictedRuns = parseInt(prediction.runs);
+            const predictedWickets = parseInt(prediction.wickets);
+            let scoreChange = 0;
+
+            // First handle runs prediction
+            if (predictedRuns !== actualRunsInt) {
+              const runMAE = Math.abs(actualRunsInt - predictedRuns);
+              scoreChange -= runMAE;
+            }
+
+            // Then handle wickets prediction
+            if (predictedWickets === actualWicketsInt) {
+              scoreChange += 10; // Add 10 points for correct wicket prediction
+            } else {
+              scoreChange -= 5; // Deduct 5 points for wrong wicket prediction
+            }
+
+            // Calculate final score (never below 0)
+            const newScore = Math.max(0, currentTeam.score + scoreChange);
+            console.log(`${prediction.team_name}: Current: ${currentTeam.score}, Change: ${scoreChange}, New: ${newScore}`);
+
+            // Update team's score
+            const { error: updateError } = await supabase
+              .from('teams')
+              .update({ score: newScore })
+              .eq('team_name', prediction.team_name);
+                
+            if (updateError) throw updateError;
+          }
+        } catch (error) {
+          console.error(`Error processing ${prediction.team_name}:`, error);
         }
       }
-      
-      // Reset all predictions to zero
+
+      // Reset predictions after processing
       const { error: resetError } = await supabase
         .from('predictions')
         .update({ runs: 0, wickets: 0 })
         .neq('team_name', '');
         
       if (resetError) throw resetError;
-      
-      // Auto-close predictions
+
+      // Close predictions
       predictionState.setStatus(false);
       setIsPredictionOpen(false);
-      
-      // Show success and reset form
-      setSuccess('Results saved and scores updated based on prediction accuracy.');
+
+      // Show success message
+      setSuccess('Results saved and scores updated successfully!');
       setActualRuns('');
       setActualWickets('');
-      
-      // Refresh stats and leaderboard
-      fetchStats();
-      fetchLeaderboard();
-      
+
+      // Refresh displays
+      await fetchStats();
+      await fetchLeaderboard();
+
     } catch (error) {
       console.error('Error submitting results:', error);
-      setError('Failed to submit results and update scores');
+      setError('Failed to update scores. Please try again.');
     } finally {
       setIsProcessing(false);
     }
