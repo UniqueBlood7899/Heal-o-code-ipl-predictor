@@ -230,29 +230,23 @@ const AdminDashboard = () => {
 
           if (currentTeam) {
             const actualRunsInt = parseInt(actualRuns);
-            const actualWicketsInt = parseInt(actualWickets);
             const predictedRuns = parseInt(prediction.runs);
-            const predictedWickets = parseInt(prediction.wickets);
             
-            // First calculate score after run prediction
+            // Start with current score
             let updatedScore = currentTeam.score;
             
-            // Handle runs prediction
+            // Only deduct points if run prediction is wrong
             if (predictedRuns !== actualRunsInt) {
               const runMAE = Math.abs(actualRunsInt - predictedRuns);
               updatedScore = Math.max(0, updatedScore - runMAE);
-            }
-
-            // Then handle wickets prediction on the updated score
-            if (predictedWickets === actualWicketsInt) {
-              updatedScore += 10; // Add 10 points for correct wicket prediction
+              console.log(`${prediction.team_name}: Wrong runs prediction! -${runMAE} points`);
             } else {
-              updatedScore = Math.max(0, updatedScore - 5); // Deduct 5 points for wrong wicket prediction
+              console.log(`${prediction.team_name}: Correct runs prediction! No deduction`);
             }
 
             console.log(`${prediction.team_name}: Initial: ${currentTeam.score}, Final: ${updatedScore}`);
 
-            // Update team's score
+            // Update team's score in database
             const { error: updateError } = await supabase
               .from('teams')
               .update({ score: updatedScore })
@@ -265,7 +259,7 @@ const AdminDashboard = () => {
         }
       }
 
-      // Reset predictions after processing
+      // Reset all predictions after processing
       const { error: resetError } = await supabase
         .from('predictions')
         .update({ runs: 0, wickets: 0 })
@@ -277,7 +271,7 @@ const AdminDashboard = () => {
       predictionState.setStatus(false);
       setIsPredictionOpen(false);
 
-      // Show success message
+      // Show success and reset form
       setSuccess('Results saved and scores updated successfully!');
       setActualRuns('');
       setActualWickets('');
